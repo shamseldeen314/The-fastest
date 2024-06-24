@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    canvas {
+      border: 1px solid #000;
+      display: block;
+      margin: 20px auto;
+    }
+  </style>
+  <title>Upgraded Space Game</title>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="gameInfo" style="text-align: center; font-size: 20px;"></div>
+  <button id="replayButton" style="display: none;" onclick="handleReplayButtonClick()">Try again!</button>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const humanPlayer = {
+      x: 50,
+      y: canvas.height / 2,
+      speed: 0,
+      acceleration: 1,
+      maxSpeed: 30,
+      moveDistance: 2,
+      color: "#FF0000",
+      isAccelerating: false,
+      accelerationStartTime: 0,
+      direction: { x: 1, y: 0 },
+      lastMoveTime: 0,
+      winner: false,
+      score: 0,
+    };
+
+    const computerPlayers = [];
+
+    for (let i = 0; i < 10; i++) {
+      computerPlayers.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        speed: Math.random() * 5 + 2, // Random speed between 2 and 7
+        direction: { x: Math.random() * 2 - 1, y: Math.random() * 2 - 1 }, // Random direction
+        color: "#00FF00", // Green color for computer players
+        lastMoveTime: 0,
+        winner: false,
+      });
+    }
+
+    const obstacles = [];
+
+    const collisionInfoElement = document.getElementById("gameInfo");
+
+    function generateObstacles() {
+      obstacles.length = 0;
+
+      for (let i = 0; i < humanPlayer.score; i++) {
+        obstacles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          width: 20,
+          height: 20,
+          color: "#0000FF", // Blue color for obstacles
+        });
+      }
+    }
+
+    function drawObstacles() {
+      for (const obstacle of obstacles) {
+        ctx.fillStyle = obstacle.color;
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+      }
+    }
+
+    function checkCollisionWithObstacles() {
+      for (const obstacle of obstacles) {
+        if (
+          humanPlayer.x < obstacle.x + obstacle.width &&
+          humanPlayer.x + 20 > obstacle.x &&
+          humanPlayer.y < obstacle.y + obstacle.height &&
+          humanPlayer.y + 20 > obstacle.y
+        ) {
+          // Game over if the human player collides with an obstacle
+          gameOver();
+        }
+      }
+    }
+
+
+    
+    function updateLevel() {
+      if (humanPlayer.score % 10 === 0 && humanPlayer.score > 0) {
+        collisionInfoElement.innerHTML = `Level ${humanPlayer.score / 10} reached!`;
+        setTimeout(() => {
+          collisionInfoElement.innerHTML = "";
+        }, 3000);
+      }
+    }
+
+    function drawPlayers() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw human player
+      ctx.fillStyle = humanPlayer.color;
+      ctx.fillRect(humanPlayer.x, humanPlayer.y, 20, 20);
+
+      // Draw computer players
+      for (const computerPlayer of computerPlayers) {
+        ctx.fillStyle = computerPlayer.color;
+        ctx.fillRect(computerPlayer.x, computerPlayer.y, 20, 20);
+      }
+
+      // Draw score
+      ctx.fillStyle = "#000";
+      ctx.font = "20px Arial";
+      ctx.fillText(`Score: ${humanPlayer.score}`, 10, 30);
+    }
+
+    function updatePlayers() {
+      const now = Date.now();
+
+      if (!humanPlayer.winner && humanPlayer.isAccelerating) {
+        const duration = now - humanPlayer.accelerationStartTime;
+        humanPlayer.acceleration = Math.min(1 + duration / 1000, humanPlayer.maxSpeed);
+        humanPlayer.speed = humanPlayer.acceleration * humanPlayer.moveDistance;
+        humanPlayer.x += humanPlayer.speed * humanPlayer.direction.x;
+        humanPlayer.y += humanPlayer.speed * humanPlayer.direction.y;
+
+        // Wrap around if human player reaches the edge
+        if (humanPlayer.x < 0) {
+          humanPlayer.x = canvas.width;
+        } else if (humanPlayer.x > canvas.width) {
+          humanPlayer.x = 0;
+        }
+
+        if (humanPlayer.y < 0) {
+          humanPlayer.y = canvas.height;
+        } else if (humanPlayer.y > canvas.height) {
+          humanPlayer.y = 0;
+        }
+
+        humanPlayer.lastMoveTime = now;
+      }
+
+      for (const computerPlayer of computerPlayers) {
+        if (!computerPlayer.winner) {
+          computerPlayer.x += computerPlayer.speed * computerPlayer.direction.x;
+          computerPlayer.y += computerPlayer.speed * computerPlayer.direction.y;
+
+          // Wrap around if computer player reaches the edge
+          if (computerPlayer.x < 0) {
+            computerPlayer.x = canvas.width;
+          } else if (computerPlayer.x > canvas.width) {
+            computerPlayer.x = 0;
+          }
+
+          if (computerPlayer.y < 0) {
+            computerPlayer.y = canvas.height;
+          } else if (computerPlayer.y > canvas.height) {
+            computerPlayer.y = 0;
+          }
+
+          computerPlayer.lastMoveTime = now;
+        }
+      }
+
+      // Check for collision with human player and computer players
+      for (const computerPlayer of computerPlayers) {
+        if (!humanPlayer.winner && !computerPlayer.winner) {
+          if (Math.abs(humanPlayer.x - computerPlayer.x) < 20 && Math.abs(humanPlayer.y - computerPlayer.y) < 20) {
+            let winnerPlayer, loserPlayer;
+            if (humanPlayer.speed > computerPlayer.speed) {
+              winnerPlayer = humanPlayer;
+              loserPlayer = computerPlayer;
+              // humanPlayer.winner = true;
+              humanPlayer.score += 1;
+            } else if (humanPlayer.speed < computerPlayer.speed) {
+              winnerPlayer = computerPlayer;
+              loserPlayer = humanPlayer;
+              computerPlayer.winner = true;
+            }
+
+            collisionInfoElement.innerHTML = `${winnerPlayer.color === humanPlayer.color ? 'You' : 'Computer Player'} wins! <br> Speeds after collision: <br> ${winnerPlayer.color === humanPlayer.color ? 'You' : 'Computer Player'}: ${winnerPlayer.speed.toFixed(2)} pixels/second <br> ${winnerPlayer.color === humanPlayer.color ? 'Computer Player' : 'You'}: ${loserPlayer.speed.toFixed(2)} pixels/second`;
+
+            if (computerPlayer.winner) {
+              // Stop the game if computer speed is greater than human speed
+              collisionInfoElement.innerHTML += `<br> Game paused. Computer speed is greater than Your speed.`;
+              gameOver();
+            } else {
+              setTimeout(() => {
+                collisionInfoElement.innerHTML = "";
+                resetGame();
+              }, 5000);
+            }
+          }
+        }
+      }
+
+      drawPlayers();
+      checkCollisionWithObstacles();
+      updateLevel();
+      drawObstacles();
+    }
+
+    function resetGame() {
+      humanPlayer.x = 50;
+      humanPlayer.y = canvas.height / 2;
+      humanPlayer.isAccelerating = false;
+      humanPlayer.lastMoveTime = 0;
+      humanPlayer.winner = false;
+
+      for (let i = 0; i < computerPlayers.length; i++) {
+        computerPlayers[i].x = Math.random() * canvas.width;
+        computerPlayers[i].y = Math.random() * canvas.height;
+        computerPlayers[i].speed = Math.random() * 5 + 2;
+        computerPlayers[i].direction = { x: Math.random() * 2 - 1, y: Math.random() * 2 - 1 };
+        computerPlayers[i].lastMoveTime = 0;
+        computerPlayers[i].winner = false;
+      }
+
+      humanPlayer.score = 0;
+      generateObstacles();
+    }
+
+
+    let numberOfWins = 0;
+
+function replayGame() {
+  resetGame();
+  generateObstacles();
+  collisionInfoElement.innerHTML = "";
+  humanPlayer.isAccelerating = true;
+  humanPlayer.accelerationStartTime = Date.now();
+  document.getElementById("replayButton").style.display = "none";
+}
+
+function handleReplayButtonClick() {
+  replayGame();
+}
+
+function gameOver() {
+  if (humanPlayer.score === 0) {
+
+    // collisionInfoElement.innerHTML = "You didn't score any points. Try again!";
+    document.getElementById("replayButton").style.display = "block";
+    collisionInfoElement.innerHTML = `${winnerPlayer.color === humanPlayer.color ? 'You' : 'Computer Player'} wins! <br> Speeds after collision: <br> ${winnerPlayer.color === humanPlayer.color ? 'You' : 'Computer Player'}: ${winnerPlayer.speed.toFixed(2)} pixels/second <br> ${winnerPlayer.color === humanPlayer.color ? 'Computer Player' : 'You'}: ${loserPlayer.speed.toFixed(2)} pixels/second`;
+
+    humanPlayer.isAccelerating = false;
+  } else {
+    collisionInfoElement.innerHTML = `Game Over! Your final score: ${humanPlayer.score}. Wins: ${numberOfWins}`;
+    document.getElementById("replayButton").style.display = "block";
+    humanPlayer.isAccelerating = false;
+  }
+}
+
+    function pauseGame() {
+      // Stop the game
+      alert("Game paused. Computer speed is greater than Your speed.");
+      gameOver();
+    }
+
+    function handleKeyDown(event) {
+      if (event.code === "Space" && !humanPlayer.isAccelerating) {
+        humanPlayer.isAccelerating = true;
+        humanPlayer.accelerationStartTime = Date.now();
+      }
+
+      if (event.code === "ArrowUp") {
+        humanPlayer.direction = { x: 0, y: -1 };
+      } else if (event.code === "ArrowDown") {
+        humanPlayer.direction = { x: 0, y: 1 };
+      } else if (event.code === "ArrowLeft") {
+        humanPlayer.direction = { x: -1, y: 0 };
+      } else if (event.code === "ArrowRight") {
+        humanPlayer.direction = { x: 1, y: 0 };
+      }
+    }
+
+    function handleKeyUp(event) {
+      if (event.code === "Space") {
+        humanPlayer.isAccelerating = false;
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keyup", handleKeyUp);
+
+    function gameLoop() {
+      updatePlayers();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    generateObstacles();
+    gameLoop();
+  </script>
+</body>
+</html>
